@@ -17,8 +17,9 @@ All colors MUST be HSL.
     --popover: 0 0% 100%;
     --popover-foreground: 222.2 84% 4.9%;
 
-    --primary: 222.2 47.4% 11.2%;
+    --primary: 142 76% 36%;
     --primary-foreground: 210 40% 98%;
+    --primary-hover: 142 76% 32%;
 
     --secondary: 210 40% 96.1%;
     --secondary-foreground: 222.2 47.4% 11.2%;
@@ -32,9 +33,22 @@ All colors MUST be HSL.
     --destructive: 0 84.2% 60.2%;
     --destructive-foreground: 210 40% 98%;
 
+    --success: 120 100% 25%;
+    --success-foreground: 0 0% 100%;
+    --success-light: 120 60% 95%;
+
+    --warning: 38 92% 50%;
+    --warning-foreground: 0 0% 100%;
+    --warning-light: 38 100% 97%;
+
+    --payment-cash: 45 100% 51%;
+    --payment-card: 220 100% 55%;
+    --payment-upi: 270 100% 60%;
+    --payment-wallet: 315 100% 60%;
+
     --border: 214.3 31.8% 91.4%;
     --input: 214.3 31.8% 91.4%;
-    --ring: 222.2 84% 4.9%;
+    --ring: 142 76% 36%;
 
     --radius: 0.5rem;
 
