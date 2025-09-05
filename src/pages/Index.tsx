@@ -213,6 +213,11 @@ const Index = () => {
           onClose={() => setIsPaymentModalOpen(false)}
           totalAmount={totalAmount}
           onPaymentComplete={handlePaymentComplete}
+          walletBalance={{
+            total: 350,
+            rewardPoints: 150,
+            refundBalance: 200
+          }}
         />
       </div>
     </div>

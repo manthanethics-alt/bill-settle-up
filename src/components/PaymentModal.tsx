@@ -5,7 +5,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { X, Trash2, Edit, CreditCard, Banknote, Smartphone, Wallet } from 'lucide-react';
+import { X, Trash2, Edit, CreditCard, Banknote, Smartphone, Wallet, Info } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
@@ -21,11 +21,18 @@ interface Payment {
   walletType?: string;
 }
 
+interface WalletBalance {
+  total: number;
+  rewardPoints: number;
+  refundBalance: number;
+}
+
 interface PaymentModalProps {
   isOpen: boolean;
   onClose: () => void;
   totalAmount: number;
   onPaymentComplete: (payments: Payment[]) => void;
+  walletBalance?: WalletBalance;
 }
 
 const PaymentModal: React.FC<PaymentModalProps> = ({
@@ -33,6 +40,7 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
   onClose,
   totalAmount,
   onPaymentComplete,
+  walletBalance = { total: 350, rewardPoints: 150, refundBalance: 200 },
 }) => {
   const [payments, setPayments] = useState<Payment[]>([]);
   const [activeMethod, setActiveMethod] = useState<'cash' | 'card' | 'upi' | 'wallet'>('cash');
@@ -42,6 +50,8 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
   const [upiId, setUpiId] = useState<string>('');
   const [walletType, setWalletType] = useState<string>('');
   const [editingPayment, setEditingPayment] = useState<string | null>(null);
+  const [showWalletBreakdown, setShowWalletBreakdown] = useState<boolean>(false);
+  const [redeemAmount, setRedeemAmount] = useState<string>('');
   const { toast } = useToast();
 
   const totalPaid = payments.reduce((sum, payment) => sum + payment.amount, 0);
@@ -49,12 +59,58 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
 
   const quickAmounts = [100, 500, 2000];
 
+  // Wallet redemption functions
+  const validateWalletAmount = useCallback((amt: string) => {
+    const numAmount = parseFloat(amt);
+    if (isNaN(numAmount) || numAmount <= 0) {
+      toast({
+        title: "Invalid Amount",
+        description: "Please enter a valid amount greater than 0",
+        variant: "destructive"
+      });
+      return false;
+    }
+    if (numAmount > walletBalance.total) {
+      toast({
+        title: "Insufficient Wallet Balance",
+        description: `Amount cannot exceed available wallet balance of ₹${walletBalance.total}`,
+        variant: "destructive"
+      });
+      return false;
+    }
+    if (numAmount > remainingBalance) {
+      toast({
+        title: "Amount Exceeds Balance",
+        description: `Amount cannot exceed remaining balance of ₹${remainingBalance}`,
+        variant: "destructive"
+      });
+      return false;
+    }
+    return true;
+  }, [walletBalance.total, remainingBalance, toast]);
+
+  const useFullWalletBalance = useCallback(() => {
+    const maxAmount = Math.min(walletBalance.total, remainingBalance);
+    setRedeemAmount(maxAmount.toString());
+  }, [walletBalance.total, remainingBalance]);
+
+  const useOnlyPoints = useCallback(() => {
+    const maxAmount = Math.min(walletBalance.rewardPoints, remainingBalance);
+    setRedeemAmount(maxAmount.toString());
+  }, [walletBalance.rewardPoints, remainingBalance]);
+
+  const useRefundBalance = useCallback(() => {
+    const maxAmount = Math.min(walletBalance.refundBalance, remainingBalance);
+    setRedeemAmount(maxAmount.toString());
+  }, [walletBalance.refundBalance, remainingBalance]);
+
   const resetForm = useCallback(() => {
     setAmount('');
     setCardType('');
     setLastFour('');
     setUpiId('');
     setWalletType('');
+    setRedeemAmount('');
   }, []);
 
   const validateAmount = useCallback((amt: string) => {
@@ -79,9 +135,13 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
   }, [remainingBalance, toast]);
 
   const addPayment = useCallback(() => {
-    if (!validateAmount(amount)) return;
+    const isWalletPayment = activeMethod === 'wallet';
+    const paymentAmount = isWalletPayment ? redeemAmount : amount;
+    
+    if (isWalletPayment && !validateWalletAmount(paymentAmount)) return;
+    if (!isWalletPayment && !validateAmount(paymentAmount)) return;
 
-    const numAmount = parseFloat(amount);
+    const numAmount = parseFloat(paymentAmount);
     let details = '';
 
     switch (activeMethod) {
@@ -100,15 +160,13 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
         details = upiId || '';
         break;
       case 'wallet':
-        if (!walletType) {
-          toast({
-            title: "Wallet Type Required", 
-            description: "Please select a wallet type",
-            variant: "destructive"
-          });
-          return;
-        }
-        details = walletType;
+        const pointsUsed = Math.min(numAmount, walletBalance.rewardPoints);
+        const refundUsed = numAmount - pointsUsed;
+        details = pointsUsed > 0 && refundUsed > 0 
+          ? `${pointsUsed} pts + ₹${refundUsed} refund used`
+          : pointsUsed > 0 
+            ? `${pointsUsed} pts used`
+            : `₹${refundUsed} refund used`;
         break;
     }
 
@@ -119,7 +177,6 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
       details,
       ...(activeMethod === 'card' && { cardType, lastFour }),
       ...(activeMethod === 'upi' && { upiId }),
-      ...(activeMethod === 'wallet' && { walletType })
     };
 
     setPayments(prev => [...prev, newPayment]);
@@ -129,7 +186,7 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
       title: "Payment Added",
       description: `₹${numAmount} payment added successfully`,
     });
-  }, [amount, activeMethod, cardType, lastFour, upiId, walletType, validateAmount, resetForm, toast]);
+  }, [amount, redeemAmount, activeMethod, cardType, lastFour, upiId, validateAmount, validateWalletAmount, walletBalance, resetForm, toast]);
 
   const deletePayment = useCallback((id: string) => {
     setPayments(prev => prev.filter(p => p.id !== id));
@@ -198,7 +255,7 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
         {/* Bill Summary */}
         <Card className="bg-muted/30">
           <CardContent className="pt-6">
-            <div className="grid grid-cols-3 gap-4 text-center">
+            <div className="grid grid-cols-4 gap-4 text-center">
               <div>
                 <p className="text-sm text-muted-foreground">Total Due</p>
                 <p className="text-2xl font-bold">₹{totalAmount}</p>
@@ -212,6 +269,26 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
                 <p className={`text-2xl font-bold ${remainingBalance === 0 ? 'text-success' : 'text-warning'}`}>
                   ₹{remainingBalance}
                 </p>
+              </div>
+              <div>
+                <div className="flex items-center justify-center gap-1 mb-1">
+                  <p className="text-sm text-muted-foreground">Wallet Balance</p>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-4 w-4 p-0"
+                    onClick={() => setShowWalletBreakdown(!showWalletBreakdown)}
+                  >
+                    <Info className="h-3 w-3" />
+                  </Button>
+                </div>
+                <p className="text-2xl font-bold text-primary">₹{walletBalance.total}</p>
+                {showWalletBreakdown && (
+                  <div className="mt-2 p-2 bg-background rounded-md text-xs">
+                    <p className="text-muted-foreground">Reward Points: {walletBalance.rewardPoints} pts (₹{walletBalance.rewardPoints})</p>
+                    <p className="text-muted-foreground">Refund Balance: ₹{walletBalance.refundBalance}</p>
+                  </div>
+                )}
               </div>
             </div>
           </CardContent>
@@ -332,29 +409,84 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
             </TabsContent>
 
             <TabsContent value="wallet" className="space-y-4 mt-0">
-              <div className="space-y-2">
-                <Label htmlFor="walletType">Wallet Type *</Label>
-                <Select value={walletType} onValueChange={setWalletType}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select wallet" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="paytm">Paytm</SelectItem>
-                    <SelectItem value="phonepe">PhonePe</SelectItem>
-                    <SelectItem value="googlepay">Google Pay</SelectItem>
-                    <SelectItem value="amazonpay">Amazon Pay</SelectItem>
-                    <SelectItem value="mobikwik">Mobikwik</SelectItem>
-                  </SelectContent>
-                </Select>
+              <div className="space-y-4">
+                <div className="p-3 bg-primary/5 rounded-lg">
+                  <p className="text-sm font-medium">Available Balance: ₹{walletBalance.total}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {walletBalance.rewardPoints} pts + ₹{walletBalance.refundBalance} refund
+                  </p>
+                </div>
+                
+                <div className="space-y-2">
+                  <Label htmlFor="redeemAmount">Enter Amount to Redeem</Label>
+                  <Input
+                    id="redeemAmount"
+                    type="number"
+                    placeholder="Enter redeem amount"
+                    value={redeemAmount}
+                    onChange={(e) => setRedeemAmount(e.target.value)}
+                    className="text-lg"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium">Quick Redeem Options:</Label>
+                  <div className="grid grid-cols-3 gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={useFullWalletBalance}
+                      disabled={remainingBalance === 0 || walletBalance.total === 0}
+                      className="text-xs"
+                    >
+                      Use Full Balance
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={useOnlyPoints}
+                      disabled={remainingBalance === 0 || walletBalance.rewardPoints === 0}
+                      className="text-xs"
+                    >
+                      Use Only Points
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={useRefundBalance}
+                      disabled={remainingBalance === 0 || walletBalance.refundBalance === 0}
+                      className="text-xs"
+                    >
+                      Use Refund Balance
+                    </Button>
+                  </div>
+                </div>
+
+                {redeemAmount && parseFloat(redeemAmount) > 0 && (
+                  <div className="p-3 bg-success/5 rounded-lg">
+                    <p className="text-sm font-medium text-success">
+                      Redeeming: ₹{parseFloat(redeemAmount)}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      {parseFloat(redeemAmount) <= walletBalance.rewardPoints 
+                        ? `${parseFloat(redeemAmount)} pts used`
+                        : `${walletBalance.rewardPoints} pts + ₹${parseFloat(redeemAmount) - walletBalance.rewardPoints} refund used`
+                      }
+                    </p>
+                  </div>
+                )}
               </div>
             </TabsContent>
 
             <Button 
               onClick={addPayment} 
               className="w-full"
-              disabled={!amount || remainingBalance === 0}
+              disabled={
+                remainingBalance === 0 || 
+                (activeMethod === 'wallet' ? !redeemAmount : !amount)
+              }
             >
-              Add Payment
+              {activeMethod === 'wallet' ? 'Add Wallet Payment' : 'Add Payment'}
             </Button>
           </div>
         </Tabs>
