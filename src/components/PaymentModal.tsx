@@ -324,9 +324,13 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader className="flex flex-row items-center justify-between pb-4 border-b">
-          <DialogTitle className="text-2xl font-semibold">Payment</DialogTitle>
+      <DialogContent className="max-w-2xl max-h-[90vh] p-0 overflow-hidden flex flex-col">
+        {/* Fixed Header */}
+        <div className="flex items-center justify-between p-6 border-b border-border bg-background flex-shrink-0">
+          <div className="flex items-center gap-2">
+            <CreditCard className="w-5 h-5 text-primary" />
+            <h2 className="text-2xl font-semibold text-foreground">Payment</h2>
+          </div>
           <Button
             variant="ghost"
             size="icon"
@@ -335,7 +339,10 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
           >
             <X className="h-4 w-4" />
           </Button>
-        </DialogHeader>
+        </div>
+
+        {/* Scrollable Content */}
+        <div className="flex-1 overflow-y-auto p-6 space-y-6">
 
         {/* Bill Summary */}
         <Card className="bg-muted/30">
@@ -471,10 +478,10 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
                   <Input
                     id="lastFour"
                     type="text"
-                    maxLength={4}
                     placeholder="1234"
                     value={lastFour}
-                    onChange={(e) => setLastFour(e.target.value.replace(/\D/g, ''))}
+                    onChange={(e) => setLastFour(e.target.value)}
+                    maxLength={4}
                   />
                 </div>
               </div>
@@ -482,11 +489,11 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
 
             <TabsContent value="upi" className="space-y-4 mt-0">
               <div className="space-y-2">
-                <Label htmlFor="upiId">UPI ID / Reference No.</Label>
+                <Label htmlFor="upiId">UPI ID / Reference No. (Optional)</Label>
                 <Input
                   id="upiId"
                   type="text"
-                  placeholder="user@paytm or transaction reference"
+                  placeholder="user@paytm"
                   value={upiId}
                   onChange={(e) => setUpiId(e.target.value)}
                 />
@@ -495,19 +502,12 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
 
             <TabsContent value="wallet" className="space-y-4 mt-0">
               <div className="space-y-4">
-                <div className="p-3 bg-primary/5 rounded-lg">
-                  <p className="text-sm font-medium">Available Balance: ₹{walletBalance.total}</p>
-                  <p className="text-xs text-muted-foreground">
-                    {walletBalance.rewardPoints} pts + ₹{walletBalance.refundBalance} refund
-                  </p>
-                </div>
-                
                 <div className="space-y-2">
-                  <Label htmlFor="redeemAmount">Enter Amount to Redeem</Label>
+                  <Label htmlFor="redeemAmount">Enter Amount to Redeem *</Label>
                   <Input
                     id="redeemAmount"
                     type="number"
-                    placeholder="Enter redeem amount"
+                    placeholder="Enter amount"
                     value={redeemAmount}
                     onChange={(e) => setRedeemAmount(e.target.value)}
                     className="text-lg"
@@ -516,84 +516,88 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
 
                 <div className="space-y-2">
                   <Label className="text-sm font-medium">Quick Redeem Options:</Label>
-                  <div className="grid grid-cols-3 gap-2">
+                  <div className="flex gap-2 flex-wrap">
                     <Button
                       variant="outline"
                       size="sm"
                       onClick={useFullWalletBalance}
-                      disabled={remainingBalance === 0 || walletBalance.total === 0}
-                      className="text-xs"
+                      disabled={remainingBalance === 0}
                     >
-                      Use Full Balance
+                      Use Full Balance (₹{Math.min(walletBalance.total, remainingBalance)})
                     </Button>
                     <Button
                       variant="outline"
                       size="sm"
                       onClick={useOnlyPoints}
-                      disabled={remainingBalance === 0 || walletBalance.rewardPoints === 0}
-                      className="text-xs"
+                      disabled={walletBalance.rewardPoints === 0}
                     >
-                      Use Only Points
+                      Use Only Points (₹{Math.min(walletBalance.rewardPoints, remainingBalance)})
                     </Button>
                     <Button
                       variant="outline"
                       size="sm"
                       onClick={useRefundBalance}
-                      disabled={remainingBalance === 0 || walletBalance.refundBalance === 0}
-                      className="text-xs"
+                      disabled={walletBalance.refundBalance === 0}
                     >
-                      Use Refund Balance
+                      Use Refund Balance (₹{Math.min(walletBalance.refundBalance, remainingBalance)})
                     </Button>
                   </div>
                 </div>
 
-                {redeemAmount && parseFloat(redeemAmount) > 0 && (
-                  <div className="p-3 bg-success/5 rounded-lg">
-                    <p className="text-sm font-medium text-success">
-                      Redeeming: ₹{parseFloat(redeemAmount)}
+                {redeemAmount && (
+                  <div className="p-3 bg-primary/5 rounded-lg">
+                    <p className="text-sm font-medium text-primary">
+                      Redeem Breakdown: ₹{redeemAmount}
                     </p>
-                    <p className="text-xs text-muted-foreground">
-                      {parseFloat(redeemAmount) <= walletBalance.rewardPoints 
-                        ? `${parseFloat(redeemAmount)} pts used`
-                        : `${walletBalance.rewardPoints} pts + ₹${parseFloat(redeemAmount) - walletBalance.rewardPoints} refund used`
-                      }
-                    </p>
+                    <div className="text-xs text-muted-foreground mt-1">
+                      {(() => {
+                        const amt = parseFloat(redeemAmount);
+                        const pointsUsed = Math.min(amt, walletBalance.rewardPoints);
+                        const refundUsed = amt - pointsUsed;
+                        return (
+                          <>
+                            {pointsUsed > 0 && <p>Points: {pointsUsed} pts</p>}
+                            {refundUsed > 0 && <p>Refund: ₹{refundUsed}</p>}
+                          </>
+                        );
+                      })()}
+                    </div>
                   </div>
                 )}
               </div>
             </TabsContent>
 
+            {/* Add Payment Button */}
             <Button 
               onClick={addPayment} 
               className="w-full"
-              disabled={
-                remainingBalance === 0 || 
-                (activeMethod === 'wallet' ? !redeemAmount : !amount)
-              }
+              disabled={activeMethod === 'wallet' ? !redeemAmount : !amount}
             >
-              {activeMethod === 'wallet' ? 'Add Wallet Payment' : 'Add Payment'}
+              Add {activeMethod === 'wallet' ? 'Wallet' : ''} Payment
             </Button>
           </div>
         </Tabs>
 
         {/* Added Payments List */}
         {payments.length > 0 && (
-          <div className="space-y-3">
-            <Label className="text-base font-semibold">Added Payments</Label>
+          <div className="space-y-4">
+            <h3 className="text-lg font-semibold">Added Payments</h3>
             <div className="space-y-2">
               {payments.map((payment) => (
-                <Card key={payment.id} className="p-3">
-                  <div className="flex items-center justify-between">
+                <Card key={payment.id} className="bg-muted/20">
+                  <CardContent className="flex items-center justify-between p-4">
                     <div className="flex items-center gap-3">
-                      <div className={getPaymentColor(payment.method)}>
+                      <div className={`p-2 rounded-full ${getPaymentColor(payment.method)} bg-muted/30`}>
                         {getPaymentIcon(payment.method)}
                       </div>
                       <div>
-                        <p className="font-medium">₹{payment.amount}</p>
-                        <p className="text-sm text-muted-foreground">
+                        <p className="font-medium">
                           {payment.method.charAt(0).toUpperCase() + payment.method.slice(1)}
-                          {payment.details && ` - ${payment.details}`}
                         </p>
+                        <p className="text-sm text-muted-foreground">₹{payment.amount}</p>
+                        {payment.details && (
+                          <p className="text-xs text-muted-foreground">{payment.details}</p>
+                        )}
                       </div>
                     </div>
                     <Button
@@ -604,7 +608,7 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
                     >
                       <Trash2 className="h-4 w-4" />
                     </Button>
-                  </div>
+                  </CardContent>
                 </Card>
               ))}
             </div>
@@ -691,9 +695,10 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
             </div>
           </CardContent>
         </Card>
+        </div>
 
-        {/* Footer */}
-        <div className="flex gap-3 pt-4 border-t">
+        {/* Fixed Footer */}
+        <div className="flex gap-3 p-6 pt-4 border-t bg-background flex-shrink-0">
           <Button variant="outline" onClick={onClose} className="flex-1">
             Cancel
           </Button>
