@@ -5,7 +5,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { X, Trash2, Edit, CreditCard, Banknote, Smartphone, Wallet, Info } from 'lucide-react';
+import { X, Trash2, Edit, CreditCard, Banknote, Smartphone, Wallet, Info, Printer, MessageCircle, MessageSquare } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
@@ -33,6 +33,8 @@ interface PaymentModalProps {
   totalAmount: number;
   onPaymentComplete: (payments: Payment[]) => void;
   walletBalance?: WalletBalance;
+  customerPhone?: string;
+  invoiceNumber?: string;
 }
 
 const PaymentModal: React.FC<PaymentModalProps> = ({
@@ -41,6 +43,8 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
   totalAmount,
   onPaymentComplete,
   walletBalance = { total: 350, rewardPoints: 150, refundBalance: 200 },
+  customerPhone = "+91 98765 43210",
+  invoiceNumber = "INV-2024-001",
 }) => {
   const [payments, setPayments] = useState<Payment[]>([]);
   const [activeMethod, setActiveMethod] = useState<'cash' | 'card' | 'upi' | 'wallet'>('cash');
@@ -52,6 +56,7 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
   const [editingPayment, setEditingPayment] = useState<string | null>(null);
   const [showWalletBreakdown, setShowWalletBreakdown] = useState<boolean>(false);
   const [redeemAmount, setRedeemAmount] = useState<string>('');
+  const [selectedDeliveryOptions, setSelectedDeliveryOptions] = useState<string[]>([]);
   const { toast } = useToast();
 
   const totalPaid = payments.reduce((sum, payment) => sum + payment.amount, 0);
@@ -207,11 +212,29 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
     }
     
     onPaymentComplete(payments);
+    
+    // Handle delivery options
+    if (selectedDeliveryOptions.length > 0) {
+      selectedDeliveryOptions.forEach(option => {
+        switch (option) {
+          case 'print':
+            handlePrintInvoice();
+            break;
+          case 'whatsapp':
+            handleWhatsAppShare();
+            break;
+          case 'sms':
+            handleSMSShare();
+            break;
+        }
+      });
+    }
+    
     toast({
       title: "Payment Successful",
       description: `Total amount of ₹${totalAmount} has been paid successfully`,
     });
-  }, [remainingBalance, payments, totalAmount, onPaymentComplete, toast]);
+  }, [remainingBalance, payments, totalAmount, onPaymentComplete, toast, selectedDeliveryOptions]);
 
   const fillRemainingAmount = useCallback(() => {
     setAmount(remainingBalance.toString());
@@ -236,6 +259,68 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
       default: return 'text-muted-foreground';
     }
   };
+
+  const handlePrintInvoice = useCallback(() => {
+    const printContent = `
+      <div style="font-family: Arial, sans-serif; max-width: 300px; margin: 0 auto;">
+        <h2 style="text-align: center;">INVOICE</h2>
+        <p><strong>Invoice No:</strong> ${invoiceNumber}</p>
+        <p><strong>Date:</strong> ${new Date().toLocaleDateString()}</p>
+        <p><strong>Customer:</strong> ${customerPhone}</p>
+        <hr>
+        <p><strong>Total Amount:</strong> ₹${totalAmount}</p>
+        <h3>Payment Details:</h3>
+        ${payments.map(p => `<p>${p.method.charAt(0).toUpperCase() + p.method.slice(1)}: ₹${p.amount}${p.details ? ` (${p.details})` : ''}</p>`).join('')}
+        <hr>
+        <p style="text-align: center;">Thank you for your business!</p>
+      </div>
+    `;
+    
+    const printWindow = window.open('', '_blank');
+    if (printWindow) {
+      printWindow.document.write(printContent);
+      printWindow.document.close();
+      printWindow.print();
+      printWindow.close();
+    }
+    
+    toast({
+      title: "Invoice Printed",
+      description: "Invoice has been sent to printer",
+    });
+  }, [invoiceNumber, customerPhone, totalAmount, payments, toast]);
+
+  const handleWhatsAppShare = useCallback(() => {
+    const message = `🧾 *INVOICE*\n\n📋 Invoice No: ${invoiceNumber}\n📅 Date: ${new Date().toLocaleDateString()}\n💰 Total Amount: ₹${totalAmount}\n\n💳 *Payment Details:*\n${payments.map(p => `${p.method.charAt(0).toUpperCase() + p.method.slice(1)}: ₹${p.amount}${p.details ? ` (${p.details})` : ''}`).join('\n')}\n\n✅ Payment Status: PAID\n\nThank you for your business! 🙏`;
+    
+    const whatsappUrl = `https://wa.me/${customerPhone.replace(/\D/g, '')}?text=${encodeURIComponent(message)}`;
+    window.open(whatsappUrl, '_blank');
+    
+    toast({
+      title: "WhatsApp Opened",
+      description: "Invoice details ready to send via WhatsApp",
+    });
+  }, [invoiceNumber, totalAmount, payments, customerPhone, toast]);
+
+  const handleSMSShare = useCallback(() => {
+    const message = `INVOICE ${invoiceNumber}\nDate: ${new Date().toLocaleDateString()}\nTotal: ₹${totalAmount}\nPayments: ${payments.map(p => `${p.method} ₹${p.amount}`).join(', ')}\nStatus: PAID\nThank you!`;
+    
+    const smsUrl = `sms:${customerPhone}?body=${encodeURIComponent(message)}`;
+    window.open(smsUrl, '_blank');
+    
+    toast({
+      title: "SMS App Opened",
+      description: "Invoice details ready to send via SMS",
+    });
+  }, [invoiceNumber, totalAmount, payments, customerPhone, toast]);
+
+  const toggleDeliveryOption = useCallback((option: string) => {
+    setSelectedDeliveryOptions(prev => 
+      prev.includes(option) 
+        ? prev.filter(o => o !== option)
+        : [...prev, option]
+    );
+  }, []);
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
@@ -525,6 +610,87 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
             </div>
           </div>
         )}
+
+        {/* Invoice Delivery Options */}
+        <Card className="bg-muted/20">
+          <CardContent className="pt-6">
+            <div className="space-y-4">
+              <div className="flex items-center gap-2">
+                <Label className="text-base font-semibold">Invoice Delivery Options</Label>
+                <Badge variant="secondary" className="text-xs">Optional</Badge>
+              </div>
+              <p className="text-sm text-muted-foreground">
+                Select how you'd like to send the invoice to customer ({customerPhone})
+              </p>
+              
+              <div className="grid grid-cols-3 gap-3">
+                <Card 
+                  className={`cursor-pointer transition-all hover:shadow-md ${
+                    selectedDeliveryOptions.includes('print') 
+                      ? 'ring-2 ring-primary bg-primary/5' 
+                      : 'hover:bg-muted/30'
+                  }`}
+                  onClick={() => toggleDeliveryOption('print')}
+                >
+                  <CardContent className="p-4 text-center">
+                    <Printer className={`h-6 w-6 mx-auto mb-2 ${
+                      selectedDeliveryOptions.includes('print') ? 'text-primary' : 'text-muted-foreground'
+                    }`} />
+                    <p className="text-sm font-medium">Print Invoice</p>
+                    <p className="text-xs text-muted-foreground">Physical receipt</p>
+                  </CardContent>
+                </Card>
+                
+                <Card 
+                  className={`cursor-pointer transition-all hover:shadow-md ${
+                    selectedDeliveryOptions.includes('whatsapp') 
+                      ? 'ring-2 ring-primary bg-primary/5' 
+                      : 'hover:bg-muted/30'
+                  }`}
+                  onClick={() => toggleDeliveryOption('whatsapp')}
+                >
+                  <CardContent className="p-4 text-center">
+                    <MessageCircle className={`h-6 w-6 mx-auto mb-2 ${
+                      selectedDeliveryOptions.includes('whatsapp') ? 'text-primary' : 'text-muted-foreground'
+                    }`} />
+                    <p className="text-sm font-medium">WhatsApp</p>
+                    <p className="text-xs text-muted-foreground">Send via chat</p>
+                  </CardContent>
+                </Card>
+                
+                <Card 
+                  className={`cursor-pointer transition-all hover:shadow-md ${
+                    selectedDeliveryOptions.includes('sms') 
+                      ? 'ring-2 ring-primary bg-primary/5' 
+                      : 'hover:bg-muted/30'
+                  }`}
+                  onClick={() => toggleDeliveryOption('sms')}
+                >
+                  <CardContent className="p-4 text-center">
+                    <MessageSquare className={`h-6 w-6 mx-auto mb-2 ${
+                      selectedDeliveryOptions.includes('sms') ? 'text-primary' : 'text-muted-foreground'
+                    }`} />
+                    <p className="text-sm font-medium">SMS</p>
+                    <p className="text-xs text-muted-foreground">Text message</p>
+                  </CardContent>
+                </Card>
+              </div>
+
+              {selectedDeliveryOptions.length > 0 && (
+                <div className="p-3 bg-success/5 rounded-lg">
+                  <p className="text-sm font-medium text-success">
+                    Selected: {selectedDeliveryOptions.map(opt => 
+                      opt.charAt(0).toUpperCase() + opt.slice(1)
+                    ).join(', ')}
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    Invoice will be delivered via selected methods after payment confirmation
+                  </p>
+                </div>
+              )}
+            </div>
+          </CardContent>
+        </Card>
 
         {/* Footer */}
         <div className="flex gap-3 pt-4 border-t">

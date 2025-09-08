@@ -218,6 +218,8 @@ const Index = () => {
             rewardPoints: 150,
             refundBalance: 200
           }}
+          customerPhone="+91 98765 43210"
+          invoiceNumber={currentInvoice.id}
         />
       </div>
     </div>
